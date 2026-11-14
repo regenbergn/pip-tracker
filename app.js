@@ -5,7 +5,7 @@
    mit dem Coaching-Sheet synchronisiert.
    ===================================================================== */
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
 
 /* ============================ Konstanten ============================ */
 
@@ -1324,10 +1324,12 @@ function renderMore() {
   const st = S.settings;
   const pending = pendingCount();
   const rehaGroups = (S.reha && S.reha.groups) || [];
-  const set = (path, label, opts = {}) => `<label class="field"><span>${label}</span><input class="input" ${opts.num ? 'inputmode="decimal" data-num="1"' : ''} ${opts.type ? `type="${opts.type}"` : ''} data-setting="${path}" value="${esc(path.split('.').reduce((o, k) => o && o[k], st) ?? '')}" ${opts.ph ? `placeholder="${esc(opts.ph)}"` : ''} autocomplete="off" autocapitalize="off" spellcheck="false"></label>`;
+  const set = (path, label, opts = {}) => `<label class="field"><span>${label}</span><input class="input" ${opts.num ? 'inputmode="decimal" data-num="1"' : ''} ${opts.type ? `type="${opts.type}"` : ''} data-setting="${path}" value="${esc(path.split('.').reduce((o, k) => o && o[k], st) ?? '')}" ${opts.ph ? `placeholder="${esc(opts.ph)}"` : ''} autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></label>`;
+  const urlOk = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]{30,}\/exec$/.test(st.scriptUrl || '');
   return `<h2 class="section-title">Google Sheet</h2>
   <section class="card">
     ${set('scriptUrl', 'Web-App-URL (Apps Script)', { type: 'url', ph: 'https://script.google.com/macros/s/…/exec' })}
+    ${st.scriptUrl ? `<p class="small" style="margin:-6px 0 12px;color:${urlOk ? 'var(--ok)' : 'var(--danger)'}">${urlOk ? '✓ Gespeichert' : '✗ Unvollständig'}: ${esc(shortScriptUrl(st.scriptUrl))}</p>` : ''}
     ${set('token', 'Passwort (TOKEN aus dem Script)', { type: 'password' })}
     <div class="btn-row"><button class="btn" data-act="testConn">Verbindung testen</button><button class="btn" data-act="fullPull">Alles aus Sheet laden</button></div>
     <button class="btn primary block" data-act="sync">Jetzt synchronisieren${pending ? ` (${pending} offen)` : ''}</button>
@@ -1407,15 +1409,37 @@ function openManage(kind) {
 
 /* ============================== Sync ================================ */
 
+/** Holt die Script-URL aus beliebig eingefügtem Text (Leerzeichen, Zeilenumbrüche, <…> usw.). */
+function cleanScriptUrl(v) {
+  const s = String(v || '').replace(/\s+/g, '');
+  const m = /https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/(exec|dev)/.exec(s);
+  return m ? m[0] : s;
+}
+function shortScriptUrl(u) {
+  const m = /\/s\/([A-Za-z0-9_-]+)\/(\w+)$/.exec(u || '');
+  if (!m) return u ? (u.length > 48 ? u.slice(0, 24) + '…' + u.slice(-20) : u) : '–';
+  return `…/s/${m[1].slice(0, 8)}…${m[1].slice(-6)}/${m[2]} (${m[1].length} Zeichen)`;
+}
+
 async function api(action, payload) {
-  const { scriptUrl, token } = S.settings;
+  const token = String(S.settings.token || '').trim();
+  const scriptUrl = cleanScriptUrl(S.settings.scriptUrl);
   if (!scriptUrl) throw new Error('Bitte zuerst unter „Mehr“ die Web-App-URL eintragen.');
-  if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(scriptUrl)) throw new Error('Die URL muss mit https://script.google.com/ beginnen.');
+  if (/\/dev$/.test(scriptUrl)) throw new Error('Das ist die Test-URL (endet auf /dev). Bitte die URL der Bereitstellung verwenden – sie endet auf /exec.');
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]{30,}\/exec$/.test(scriptUrl)) {
+    throw new Error(`Die gespeicherte URL ist unvollständig: ${shortScriptUrl(scriptUrl)}. Sie muss so aussehen: https://script.google.com/macros/s/…/exec`);
+  }
   let res;
   try {
     res = await fetch(scriptUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ token, action, payload }), redirect: 'follow' });
   } catch (e) {
-    throw new Error(navigator.onLine === false ? 'Keine Internetverbindung.' : 'Script nicht erreichbar. Ist der Zugriff auf „Jeder“ gestellt?');
+    if (navigator.onLine === false) throw new Error('Keine Internetverbindung.');
+    // Diagnose: antwortet die URL überhaupt?
+    let reachable = false;
+    try { const g = await fetch(scriptUrl); const j = await g.json(); reachable = !!(j && j.app === 'PIP Tracker Sync'); } catch (e2) { reachable = false; }
+    throw new Error(reachable
+      ? 'Script erreichbar, aber die Anfrage wurde abgebrochen. Bitte App ganz schließen, neu öffnen und erneut versuchen.'
+      : `Script unter dieser URL nicht erreichbar: ${shortScriptUrl(scriptUrl)}. Bitte URL neu einfügen.`);
   }
   if (!res.ok) throw new Error('Script-Fehler (HTTP ' + res.status + ').');
   const txt = await res.text();
@@ -2114,8 +2138,12 @@ document.addEventListener('change', e => {
   } else if (el.dataset.setting) {
     let v = el.value.trim();
     if (el.dataset.num) v = num(v);
+    if (el.dataset.setting === 'scriptUrl') v = cleanScriptUrl(v);
     setPath(S.settings, el.dataset.setting, v === '' ? null : v);
-    if (el.dataset.setting.startsWith('targets.')) { S.settings.targetsSet = true; render(); }
+    if (el.dataset.setting.startsWith('targets.') || el.dataset.setting === 'scriptUrl') {
+      if (el.dataset.setting.startsWith('targets.')) S.settings.targetsSet = true;
+      render();
+    }
     save('settings');
   } else if (el.dataset.supp) {
     const [id, field] = el.dataset.supp.split('|');

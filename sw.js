@@ -1,5 +1,5 @@
 /* PIP Tracker – Service Worker (offline-fähig) */
-const CACHE = 'pip-tracker-v1.0.0';
+const CACHE = 'pip-tracker-v1.0.1';
 const ASSETS = ['./', './index.html', './app.css', './app.js', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 const SCANNER = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
 
@@ -20,10 +20,10 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
-  // App-Dateien: erst Netz (für Updates), bei Offline aus dem Cache
+  // App-Dateien: erst Netz (immer frisch prüfen, damit Updates sofort ankommen), bei Offline aus dem Cache
   if (url.origin === self.location.origin) {
     e.respondWith(
-      fetch(req)
+      fetch(req.mode === 'navigate' ? req : new Request(req.url, { cache: 'no-cache', credentials: 'same-origin' }))
         .then(res => {
           if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
           return res;
