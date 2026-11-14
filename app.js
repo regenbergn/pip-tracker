@@ -5,7 +5,7 @@
    mit dem Coaching-Sheet synchronisiert.
    ===================================================================== */
 
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.1.0';
 
 /* ============================ Konstanten ============================ */
 
@@ -291,7 +291,7 @@ const TABS = [
 
 function shellHTML() {
   return `
-  <header class="topbar"><h1 id="tbTitle"></h1>
+  <header class="topbar"><h1><span id="tbTitle"></span><i class="brand-dot" aria-hidden="true"></i></h1>
     <button class="sync-btn" id="syncBtn" data-act="sync" aria-label="Mit Google Sheet synchronisieren">${I.sync}<span>Sync</span><span class="badge hidden" id="syncBadge"></span></button>
   </header>
   <main class="view" id="view"></main>
@@ -391,14 +391,19 @@ function dateNav() {
   </div>`;
 }
 
+/** Zwischenüberschrift nach Styleguide: zwei Phrasen, die zweite in Signalrot. */
+function headline(a, b) {
+  return `<div class="headline"><span>${esc(a)}</span>${b ? `<span class="red">${esc(b)}</span>` : ''}</div>`;
+}
+
 function ring(val, target) {
   const r = 54, C = 2 * Math.PI * r;
   const pct = target ? clamp(val / target, 0, 1) : 0;
   const over = target && val > target * 1.03;
   const left = Math.round(target - val);
-  return `<div class="ring"><svg viewBox="0 0 128 128">
-    <circle cx="64" cy="64" r="${r}" fill="none" stroke="var(--fill)" stroke-width="11"/>
-    ${pct > 0 ? `<circle cx="64" cy="64" r="${r}" fill="none" stroke="${over ? 'var(--p)' : 'var(--accent)'}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${C * pct} ${C}"/>` : ''}
+  return `<div class="ring ${over ? 'over' : ''}"><svg viewBox="0 0 128 128">
+    <circle cx="64" cy="64" r="${r}" fill="none" stroke="var(--fill)" stroke-width="10"/>
+    ${pct > 0 ? `<circle cx="64" cy="64" r="${r}" fill="none" stroke="var(--accent)" stroke-width="10" stroke-dasharray="${C * pct} ${C}"/>` : ''}
   </svg><div class="ring-txt"><b class="tnum">${nf(val)}</b><small>von ${nf(target)} kcal</small><small>${left >= 0 ? nf(left) + ' übrig' : nf(-left) + ' drüber'}</small></div></div>`;
 }
 function macroBar(label, val, target, col) {
@@ -648,7 +653,7 @@ function renderAmount(st) {
   </section>
   <button class="btn primary block" data-act="amtSave">${st.entry ? 'Speichern' : 'Hinzufügen'}</button>
   ${st.entry ? '<button class="btn danger block" data-act="amtDelete">Eintrag löschen</button>' : ''}
-  ${f.kind === 'own' || f.kind === 'off' ? '<button class="btn danger block" style="color:var(--accent)" data-act="editFoodFromAmount">Nährwerte bearbeiten</button>' : ''}`;
+  ${f.kind === 'own' || f.kind === 'off' ? '<button class="btn danger block" style="color:var(--muted)" data-act="editFoodFromAmount">Nährwerte bearbeiten</button>' : ''}`;
 }
 
 function rememberFood(f, grams) {
@@ -1016,7 +1021,7 @@ function touchWorkout(w) { w.updatedAt = Date.now(); save('workouts'); updateSyn
 function renderTraining() {
   const P = S.plan;
   if (!P || !P.days || !P.days.length) {
-    return `<div class="empty"><h3>Noch kein Trainingsplan</h3><p>Der aktuelle Mesocycle wird beim Sync aus deinem Google Sheet geladen.</p>
+    return `<div class="empty">${headline('Kein Plan.', 'Noch nicht geladen.')}<p>Der aktuelle Mesocycle wird beim Sync aus deinem Google Sheet geladen.</p>
       <button class="btn primary" data-act="${S.settings.scriptUrl ? 'fullPull' : 'tab'}" data-v="more">${S.settings.scriptUrl ? 'Jetzt laden' : 'Sheet verbinden'}</button></div>`;
   }
   ensureTrainingSelection();
@@ -1033,8 +1038,8 @@ function renderTraining() {
     return `<button class="chip sm ${n === wk ? 'on' : ''} ${done ? 'done' : ''}" data-act="trWeek" data-v="${n}">Woche ${n}</button>`;
   }).join('')}</div>
   <div class="day-tabs" aria-label="Trainingstag">${P.days.map(d => `<button class="day-tab ${d.idx === day.idx ? 'on' : ''} ${workoutDone(wk, d.idx) ? 'done' : ''}" data-act="trDay" data-v="${d.idx}"><b>Tag ${d.idx}</b><small>${esc(d.title)}</small></button>`).join('')}</div>
-  <h2 class="section-title">${esc(day.title)}</h2>
-  ${w && w.date ? `<p class="muted small" style="margin:-6px 2px 10px">${fmtDay(w.date)}${w.finishedAt ? ' · abgeschlossen' : ' · läuft'}</p>` : ''}
+  ${headline(`Woche ${wk} · Tag ${day.idx}.`, day.title)}
+  ${w && w.date ? `<p class="muted small" style="margin:-8px 2px 12px">${fmtDay(w.date)}${w.finishedAt ? ' · abgeschlossen' : ' · läuft'}</p>` : ''}
   ${groups.length ? groups.map((g, gi) => exerciseCard(g, wk, day, w, lastIdxOfMuscle[g.muscle] === gi)).join('') : '<div class="empty">In dieser Woche ist für diesen Tag nichts geplant.</div>'}
   ${groups.length ? finishBlock(w, sess) : ''}`;
 }
@@ -1203,7 +1208,7 @@ function renderHistory() {
 
 function renderWeight() {
   const all = Object.values(S.days).filter(d => num(d.weight)).sort((a, b) => a.date < b.date ? -1 : 1);
-  if (all.length < 2) return '<div class="empty"><h3>Noch zu wenig Daten</h3><p>Trage dein Gewicht im Check-in ein oder lade deine Historie aus dem Sheet.</p></div>';
+  if (all.length < 2) return `<div class="empty">${headline('Zu wenig Daten.', 'Erst wiegen.')}<p>Trage dein Gewicht im Check-in ein oder lade deine Historie aus dem Sheet.</p></div>`;
   const end = today();
   const ranges = [[28, '4 W'], [84, '12 W'], [182, '6 M'], [365, '1 J'], [0, 'Alles']];
   const start = ui.range ? addDays(end, -ui.range + 1) : all[0].date;
@@ -1297,7 +1302,7 @@ function renderSizes() {
       const v = num(last.values[i]), pv = prev ? num(prev.values[i]) : null;
       const dl = v !== null && pv !== null ? v - pv : null;
       return `<div class="size-row"><span>${esc(l)}</span><b class="tnum">${nf(v, 1)} cm ${dl !== null ? `<small class="muted">(${dl > 0 ? '+' : ''}${nf(dl, 1)})</small>` : ''}</b></div>`;
-    }).join('')}</section>` : '<div class="empty"><p>Noch keine Körpermaße. Messung anlegen – sie landet beim Sync im Tab „Sizes“.</p></div>'}
+    }).join('')}</section>` : `<div class="empty">${headline('Noch keine Maße.', 'Maßband raus.')}<p>Messung anlegen – sie landet beim Sync im Tab „Sizes“.</p></div>`}
   ${entries.length ? `<div class="sub-title">Alle Messungen</div><section class="card">${entries.map(e => `<button class="list-row" style="width:100%;text-align:left" data-act="editSizes" data-date="${e.date}"><div><b>${fmtDay(e.date)} ${parseISO(e.date).getFullYear()}</b><small>${e.values.filter(v => v !== null && v !== '').length} Werte${isDirty(e) ? ' · noch nicht synchronisiert' : ''}</small></div>${I.right}</button>`).join('')}</section>` : ''}`;
 }
 
@@ -1385,7 +1390,7 @@ function renderMore() {
     <div class="btn-row"><button class="btn" data-act="exportFile">Als Datei exportieren</button><label class="btn" style="flex:1 1 140px">Datei importieren<input type="file" accept="application/json,.json" data-ch="importFile" hidden></label></div>
     <p class="muted small" style="margin:0">Tracking-Werte liegen zusätzlich im Sheet. Lebensmittel-Einträge, Rezepte, Wasser & Supplements nur in der App – deshalb regelmäßig sichern.</p>
   </section>
-  <p class="muted small center">PIP Tracker v${APP_VERSION}</p>`;
+  <p class="app-version">PIP Tracker · v${APP_VERSION}</p>`;
 }
 
 function openManage(kind) {
@@ -1573,7 +1578,7 @@ async function syncNow(opts = {}) {
     const msg = `Synchronisiert ✓ ${r.written.days.length} Tage · ${r.written.workouts.length} Trainings · ${r.written.sizes.length} Maße`;
     if (r.warnings && r.warnings.length) {
       toast(msg + ' – ' + r.warnings.length + ' Hinweis(e)');
-      openSheet(() => `${sheetHead('Sync-Hinweise', '<span></span>', '<button class="txt-btn bold" data-act="closeSheet">OK</button>')}<section class="card"><ul class="warn-list">${r.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul></section>`);
+      openSheet(() => `${sheetHead('Sync-Hinweise', '<span></span>', '<button class="txt-btn bold" data-act="closeSheet">OK</button>')}<section class="card"><ul class="bullets warn-list">${r.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul></section>`);
     } else toast(msg);
   } catch (e) {
     toast('Sync fehlgeschlagen: ' + e.message, true);

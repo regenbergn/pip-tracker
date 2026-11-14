@@ -1,5 +1,5 @@
 /* PIP Tracker – Service Worker (offline-fähig) */
-const CACHE = 'pip-tracker-v1.0.1';
+const CACHE = 'pip-tracker-v1.1.0';
 const ASSETS = ['./', './index.html', './app.css', './app.js', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 const SCANNER = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
 
@@ -33,8 +33,8 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Barcode-Scanner-Bibliothek: einmal laden, dann aus dem Cache
-  if (req.url === SCANNER) {
+  // Barcode-Scanner-Bibliothek und Schriften (Anton, Graduate, Archivo): einmal laden, dann aus dem Cache
+  if (req.url === SCANNER || url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
     e.respondWith(
       caches.match(req).then(hit => hit || fetch(req).then(res => {
         const copy = res.clone();
